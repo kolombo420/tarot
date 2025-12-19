@@ -1,11 +1,42 @@
-<div align="center">
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+# СКАМ ТАРО ✨ Local Setup
 
-  <h1>Built with AI Studio</h2>
+Инструкция по запуску и созданию EXE.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+## 1. Подготовка
+1. Установите [Node.js](https://nodejs.org/) (версия LTS).
+2. Распакуйте файлы приложения в отдельную папку.
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## 2. Установка зависимостей
+Откройте CMD в папке проекта и выполните:
+```cmd
+npm install
+```
 
-</div>
+## 3. Настройка API ключа
+Создайте в корне папки файл под названием `.env` и добавьте туда строку:
+```env
+API_KEY=ваш_ключ_от_gemini_ai
+```
+
+## 4. Локальный запуск
+Для запуска сервера разработки:
+```cmd
+npm run dev
+```
+После запуска откройте `http://localhost:5173` в браузере.
+
+## 5. Сборка для EXE
+Чтобы подготовить файлы для упаковки:
+1. Выполните:
+   ```cmd
+   npm run build
+   ```
+2. Папка `dist` будет содержать готовое приложение.
+
+## 6. Создание EXE через Nativefier
+1. Установите Nativefier: `npm install -g nativefier`
+2. Соберите EXE (укажите адрес запущенного локально приложения):
+   ```cmd
+   nativefier --name "ScamTarot" --icon "icon.ico" "http://localhost:5173"
+   ```

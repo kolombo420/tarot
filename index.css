@@ -1,0 +1,91 @@
+
+:root {
+    --gold: #d4af37;
+    --gold-light: #f9e29c;
+    --deep-bg: #020205;
+}
+
+body {
+    font-family: 'Montserrat', sans-serif;
+    background: var(--deep-bg);
+    color: #e2e2d5;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+/* Animated Universe Background */
+#starfield-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    background: radial-gradient(circle at center, #0a0a1a 0%, #020205 100%);
+    overflow: hidden;
+}
+
+.star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    opacity: 0;
+    animation: twinkle var(--duration) infinite ease-in-out;
+    animation-delay: var(--delay);
+}
+
+.shooting-star {
+    position: absolute;
+    width: 150px;
+    height: 1px;
+    background: linear-gradient(90deg, white, transparent);
+    opacity: 0;
+    animation: shooting var(--duration) infinite linear;
+    animation-delay: var(--delay);
+    transform: rotate(-35deg);
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.2; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 10px white; }
+}
+
+@keyframes shooting {
+    0% { transform: translateX(0) translateY(0) rotate(-35deg); opacity: 0; }
+    10% { opacity: 1; }
+    30% { transform: translateX(-500px) translateY(350px) rotate(-35deg); opacity: 0; }
+    100% { transform: translateX(-500px) translateY(350px) rotate(-35deg); opacity: 0; }
+}
+
+.nebula {
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    background: radial-gradient(circle at 50% 50%, rgba(157, 0, 255, 0.05) 0%, transparent 70%);
+    animation: nebula-move 20s infinite alternate ease-in-out;
+}
+
+@keyframes nebula-move {
+    from { transform: scale(1) translate(0, 0); }
+    to { transform: scale(1.2) translate(50px, 30px); }
+}
+
+.bg-overlay {
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(circle at center, transparent 0%, rgba(2, 2, 5, 0.8) 100%);
+    z-index: -1;
+    pointer-events: none;
+}
+
+.font-cinzel { font-family: 'Cinzel', serif; }
+
+.gold-gradient-text {
+    background: linear-gradient(135deg, #f9e29c 0%, #d4af37 40%, #a67c00 70%, #f9e29c 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+::-webkit-scrollbar { width: 0px; }

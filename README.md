@@ -14,9 +14,9 @@ npm install
 ```
 
 ## 3. Настройка API ключа
-Создайте в корне папки файл под названием `.env` и добавьте туда строку:
-```env
-API_KEY=ваш_ключ_от_gemini_ai
+Выполните команду в CMD, чтобы создать файл настроек:
+```cmd
+echo API_KEY=AIzaSyDr_51GQZTeVoS4h_qdfrmKQ36riwvXCM8 > .env
 ```
 
 ## 4. Локальный запуск
@@ -24,7 +24,7 @@ API_KEY=ваш_ключ_от_gemini_ai
 ```cmd
 npm run dev
 ```
-После запуска откройте `http://localhost:5173` в браузере.
+После запуска откройте `http://localhost:5173` в браузере. Приложение будет использовать ваш ключ автоматически.
 
 ## 5. Сборка для EXE
 Чтобы подготовить файлы для упаковки:
@@ -32,11 +32,11 @@ npm run dev
    ```cmd
    npm run build
    ```
-2. Папка `dist` будет содержать готовое приложение.
+2. Папка `dist` будет содержать готовое приложение с "вшитым" ключом.
 
 ## 6. Создание EXE через Nativefier
 1. Установите Nativefier: `npm install -g nativefier`
-2. Соберите EXE (укажите адрес запущенного локально приложения):
+2. Соберите EXE:
    ```cmd
-   nativefier --name "ScamTarot" --icon "icon.ico" "http://localhost:5173"
+   nativefier --name "ScamTarot" "dist/index.html"
    ```

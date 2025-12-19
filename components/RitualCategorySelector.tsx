@@ -2,7 +2,7 @@
 import React from 'react';
 import { RitualCategoryInfo } from '../types';
 import { RITUAL_CATEGORIES } from '../constants';
-import { Eye, Skull, Heart, Sparkles } from 'lucide-react';
+import { Skull, Heart, Sparkles, Layers } from 'lucide-react';
 
 interface Props {
   onSelect: (category: RitualCategoryInfo) => void;
@@ -10,68 +10,62 @@ interface Props {
 }
 
 const RitualCategorySelector: React.FC<Props> = ({ onSelect, lang }) => {
-  const getIcon = (id: string) => {
-    const size = 64;
-    const strokeWidth = 0.75;
+  const getIcon = (id: string, className: string) => {
+    // Увеличено в 2 раза (было 32, стало 64)
+    const size = 64; 
+    const strokeWidth = 1;
     switch(id) {
-      case 'TAROT': return <Eye size={size} strokeWidth={strokeWidth} />;
-      case 'HEX': return <Skull size={size} strokeWidth={strokeWidth} />;
-      case 'LOVE': return <Heart size={size} strokeWidth={strokeWidth} />;
-      case 'DIVINATION': return <Sparkles size={size} strokeWidth={strokeWidth} />;
-      default: return <Sparkles size={size} strokeWidth={strokeWidth} />;
+      case 'TAROT': return <Layers size={size} strokeWidth={strokeWidth} className={className} />;
+      case 'HEX': return <Skull size={size} strokeWidth={strokeWidth} className={className} />;
+      case 'LOVE': return <Heart size={size} strokeWidth={strokeWidth} className={className} />;
+      case 'DIVINATION': return <Sparkles size={size} strokeWidth={strokeWidth} className={className} />;
+      default: return <Sparkles size={size} strokeWidth={strokeWidth} className={className} />;
     }
   };
 
   return (
-    <div className="relative w-full max-w-6xl mx-auto">
-      {/* Decorative background geometry */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none scale-150 overflow-hidden">
-        <svg viewBox="0 0 100 100" className="w-[800px] h-[800px] text-[#d4af37] animate-[spin_60s_linear_infinite]">
-          <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" strokeWidth="0.2" />
-          <path d="M50,2 L50,98 M2,50 L98,50 M15,15 L85,85 M85,15 L15,85" stroke="currentColor" strokeWidth="0.1" />
-          <polygon points="50,5 95,50 50,95 5,50" fill="none" stroke="currentColor" strokeWidth="0.2" />
-        </svg>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 px-6 relative z-10">
+    <div className="w-full max-w-5xl mx-auto px-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
         {RITUAL_CATEGORIES.map((cat) => (
           <button
             key={cat.id}
             onClick={() => onSelect(cat)}
-            className="group relative p-12 bg-black/40 backdrop-blur-md rounded-[4rem] border border-[#d4af3711] hover:border-[#d4af3766] transition-all duration-1000 text-left overflow-hidden h-[340px] flex flex-col justify-between shadow-2xl hover:shadow-[0_0_80px_rgba(212,175,55,0.05)]"
+            className="group relative min-h-[180px] md:min-h-[220px] bg-black/40 backdrop-blur-3xl rounded-[2.5rem] border border-[#d4af3711] hover:border-[#d4af3766] transition-all duration-700 text-left overflow-hidden shadow-2xl hover:scale-[1.02] active:scale-95 flex flex-col"
           >
-            {/* Hover Accent */}
+            {/* Background Glow */}
             <div 
-              className="absolute top-0 right-0 w-64 h-64 -mr-16 -mt-16 rounded-full opacity-0 group-hover:opacity-10 transition-opacity duration-1000 blur-3xl pointer-events-none" 
+              className="absolute top-0 left-0 w-48 h-48 -ml-12 -mt-12 rounded-full opacity-0 group-hover:opacity-10 transition-opacity duration-1000 blur-[60px] pointer-events-none" 
               style={{ backgroundColor: cat.color }}
             ></div>
             
-            <div className="flex justify-between items-start">
-              <div className="text-[#f9e29c] opacity-40 group-hover:opacity-100 group-hover:scale-110 group-hover:rotate-6 transition-all duration-700">
-                {getIcon(cat.id)}
-              </div>
-              <div className="font-cinzel text-[10px] tracking-[0.5em] text-[#d4af3733] uppercase">
-                {cat.id}
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-3xl font-cinzel font-bold text-[#f9e29c] mb-4 tracking-[0.1em] uppercase group-hover:gold-gradient-text transition-all">
-                {lang === 'ru' ? cat.title : cat.titleEn}
-              </h3>
-              <p className="text-[12px] text-gray-500 font-playfair italic leading-relaxed max-w-xs opacity-70 group-hover:opacity-100 transition-opacity">
-                {lang === 'ru' ? cat.description : cat.descriptionEn}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-4 text-[9px] font-cinzel tracking-[0.4em] text-[#d4af3766] group-hover:text-[#d4af37] transition-colors uppercase">
-              <div className="h-[1px] w-12 bg-current opacity-20"></div>
-              {lang === 'ru' ? 'Инициация' : 'Initiation'}
-            </div>
+            <div className="relative z-10 p-6 md:p-8 flex flex-col h-full flex-grow">
+              <div className="flex flex-row items-center gap-6 mb-4">
+                {/* Animated Icon - Doubled in size */}
+                <div className="shrink-0 relative group-hover:scale-110 transition-transform duration-700">
+                  <div className="absolute inset-0 bg-[#f9e29c] blur-xl opacity-0 group-hover:opacity-20 transition-opacity animate-pulse"></div>
+                  <div className="text-[#f9e29c] drop-shadow-[0_0_15px_rgba(249,226,156,0.4)]">
+                    {getIcon(cat.id, "")}
+                  </div>
+                </div>
 
-            {/* Corner details */}
-            <div className="absolute top-8 left-8 text-[#d4af3708] text-xs">☿</div>
-            <div className="absolute bottom-8 right-8 text-[#d4af3708] text-xs">🜂</div>
+                <div className="flex flex-col">
+                  <div className="text-[10px] md:text-xs font-montserrat font-black text-[#d4af3744] tracking-[0.4em] uppercase mb-1">ВЕРШИНА МАГИИ</div>
+                  <h3 className="text-lg md:text-2xl font-cinzel font-black gold-gradient-text tracking-wider uppercase leading-tight">
+                    {lang === 'ru' ? cat.title : cat.titleEn}
+                  </h3>
+                </div>
+              </div>
+              
+              <div className="flex-grow flex flex-col justify-between">
+                <p className="text-xs md:text-sm text-gray-300 font-montserrat leading-relaxed opacity-60 group-hover:opacity-100 transition-opacity mb-6">
+                  {lang === 'ru' ? cat.description : cat.descriptionEn}
+                </p>
+                <div className="flex items-center gap-3 text-[10px] md:text-xs font-montserrat font-black tracking-[0.4em] gold-gradient-text group-hover:text-white transition-all duration-500 uppercase">
+                  <span className="w-8 h-[1px] bg-current opacity-20 group-hover:w-14 transition-all duration-700"></span>
+                  {lang === 'ru' ? 'ВЫБРАТЬ ПУТЬ' : 'CHOOSE PATH'}
+                </div>
+              </div>
+            </div>
           </button>
         ))}
       </div>

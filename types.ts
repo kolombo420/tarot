@@ -7,6 +7,7 @@ export interface TarotCard {
   name: string;
   nameRu: string;
   description: string;
+  interpretation?: string; // AI generated interpretation
   imageUrl?: string;
   revealed?: boolean;
 }
@@ -43,10 +44,11 @@ export interface ReadingState {
   lang: Language;
   category: RitualCategory | null;
   cards: TarotCard[];
+  readingOutcome: string | null; // General summary of the reading
   deck: DeckInfo | null;
   readingType: ReadingType | null;
   targetPhoto: string | null;
-  targetPhoto2: string | null; // Второе фото для любовных ритуалов
+  targetPhoto2: string | null;
   spellQuery: string | null;
   positiveQuery: string | null;
   selectedIndices: number[];

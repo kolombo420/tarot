@@ -1,8 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ШЕПОТ ОРАКУЛА 🌙</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Montserrat:wght@300;400;600&family=Cinzel:wght@400;700;900&display=swap" rel="stylesheet">
@@ -15,10 +16,44 @@
     "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
     "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
     "vite": "https://esm.sh/vite@^7.3.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "@vkontakte/vk-bridge": "https://esm.sh/@vkontakte/vk-bridge@^2.14.1"
   }
 }
 </script>
+<style>
+    /* Ensure starfield is visible immediately */
+    #starfield-container {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at center, #050510 0%, #020205 100%);
+    }
+    .star {
+        position: absolute;
+        background-color: #fff;
+        border-radius: 50%;
+        opacity: 0.3;
+        animation: twinkle var(--duration) ease-in-out infinite alternate;
+    }
+    @keyframes twinkle {
+        from { opacity: 0.2; transform: scale(0.8); }
+        to { opacity: 0.8; transform: scale(1.1); }
+    }
+    .shooting-star {
+        position: absolute;
+        width: 2px;
+        height: 2px;
+        background: linear-gradient(90deg, #fff, transparent);
+        animation: shoot var(--duration) linear forwards;
+    }
+    @keyframes shoot {
+        0% { transform: translateX(0) translateY(0) rotate(-45deg); opacity: 1; width: 0; }
+        10% { width: 100px; }
+        100% { transform: translateX(500px) translateY(500px) rotate(-45deg); opacity: 0; width: 0; }
+    }
+</style>
 </head>
 <body>
     <div id="starfield-container">
@@ -26,40 +61,95 @@
         <div id="stars-root"></div>
         <div id="shooting-stars-root"></div>
     </div>
-    <div class="bg-overlay"></div>
 
     <div id="root" class="relative z-10"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
-        function initStars() {
+        /**
+         * Robust Initialization with Triple Check
+         * Ensures that the celestial background renders correctly by verifying DOM readiness and node population.
+         */
+        let initAttempts = 0;
+        const MAX_ATTEMPTS = 3;
+
+        function performCelestialInit() {
             const root = document.getElementById('stars-root');
             const shootingRoot = document.getElementById('shooting-stars-root');
-            if (!root || !shootingRoot) return;
             
-            for (let i = 0; i < 200; i++) {
-                const star = document.createElement('div');
-                star.className = 'star';
-                const size = Math.random() * 2 + 0.5;
-                star.style.width = size + 'px';
-                star.style.height = size + 'px';
-                star.style.left = Math.random() * 100 + '%';
-                star.style.top = Math.random() * 100 + '%';
-                star.style.setProperty('--duration', (Math.random() * 3 + 2) + 's');
-                star.style.setProperty('--delay', (Math.random() * 5) + 's');
-                root.appendChild(star);
+            // Phase 1: DOM Existence Check
+            if (!root || !shootingRoot) {
+                console.warn(`[Oracle] Background nodes missing. Attempt ${initAttempts + 1}/${MAX_ATTEMPTS}`);
+                retryInit();
+                return;
             }
 
-            for (let i = 0; i < 3; i++) {
-                const sStar = document.createElement('div');
-                sStar.className = 'shooting-star';
-                sStar.style.left = (Math.random() * 100 + 50) + '%';
-                sStar.style.top = (Math.random() * 50) + '%';
-                sStar.style.setProperty('--duration', (Math.random() * 5 + 7) + 's');
-                sStar.style.setProperty('--delay', (Math.random() * 15) + 's');
-                shootingRoot.appendChild(sStar);
+            // Phase 2: Content Population
+            if (root.children.length === 0) {
+                for (let i = 0; i < 250; i++) {
+                    const star = document.createElement('div');
+                    star.className = 'star';
+                    const size = Math.random() * 1.8 + 0.2;
+                    const depth = Math.random();
+                    
+                    star.style.width = size + 'px';
+                    star.style.height = size + 'px';
+                    star.style.left = Math.random() * 100 + '%';
+                    star.style.top = Math.random() * 100 + '%';
+                    
+                    const duration = (Math.random() * 3 + 2) + 's';
+                    const driftDuration = (60 + Math.random() * 60) + 's';
+                    
+                    star.style.setProperty('--duration', duration);
+                    star.style.animationDuration = duration + ', ' + driftDuration;
+                    star.style.animationDelay = (Math.random() * 10) + 's';
+                    
+                    const hue = Math.random() > 0.9 ? (Math.random() > 0.5 ? '200' : '40') : '0';
+                    star.style.backgroundColor = hue === '0' ? '#fff' : 'hsl(' + hue + ', 80%, 90%)';
+                    
+                    root.appendChild(star);
+                }
+                console.log("[Oracle] Celestial vault populated.");
+            }
+
+            // Phase 3: Final Verification
+            if (root.children.length < 200) {
+                console.error("[Oracle] Sky population incomplete. Retrying...");
+                root.innerHTML = '';
+                retryInit();
+                return;
+            }
+
+            // Initialization successful
+            startShootingStars(shootingRoot);
+        }
+
+        function retryInit() {
+            initAttempts++;
+            if (initAttempts < MAX_ATTEMPTS) {
+                setTimeout(performCelestialInit, 500);
+            } else {
+                console.error("[Oracle] Failed to stabilize the celestial spheres after 3 attempts.");
             }
         }
-        window.addEventListener('load', initStars);
+
+        function startShootingStars(shootingRoot) {
+            function createShootingStar() {
+                const sStar = document.createElement('div');
+                sStar.className = 'shooting-star';
+                sStar.style.left = (Math.random() * 100) + '%';
+                sStar.style.top = (Math.random() * 40) + '%';
+                sStar.style.setProperty('--duration', (Math.random() * 1.5 + 0.5) + 's');
+                
+                shootingRoot.appendChild(sStar);
+                setTimeout(() => sStar.remove(), 2000);
+            }
+
+            setInterval(() => {
+                if (Math.random() > 0.7) createShootingStar();
+            }, 4000);
+        }
+
+        window.addEventListener('load', performCelestialInit);
     </script>
 </body>
 </html>

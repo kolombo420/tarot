@@ -1,15 +1,16 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Orbit, Loader2 } from 'lucide-react';
+import { Mail, Orbit, Loader2, Sparkles } from 'lucide-react';
 import { translations, Language } from '../translations';
 import { GoogleGenAI } from '@google/genai';
+import { AppStyle } from '../types';
 
 interface Message {
   role: 'user' | 'oracle';
   text: string;
 }
 
-const OracleChat: React.FC<{ lang: Language }> = ({ lang }) => {
+const OracleChat: React.FC<{ lang: Language, appStyle: AppStyle }> = ({ lang, appStyle }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +19,10 @@ const OracleChat: React.FC<{ lang: Language }> = ({ lang }) => {
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [messages, loading]);
 
@@ -32,92 +36,72 @@ const OracleChat: React.FC<{ lang: Language }> = ({ lang }) => {
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Ты - Оракул Шепотов, древнее мистическое существо. Искатель спрашивает: "${query}". Ответь с глубокой мистической мудростью. Твой ответ должен быть не длиннее 1 предложения. Отвечай на языке: ${lang === 'ru' ? 'Русский' : 'English'}.`;
+      const voiceTone = {
+        'CELESTIAL': 'Seraphic and wise',
+        'VOID': 'Binary, cryptic and digital',
+        'CHTHONIC': 'Gravelly, ancient and dark'
+      }[appStyle];
+
+      const prompt = `Oracle [Tone: ${voiceTone}]: Answer briefly and mystically to the question: "${query}". Lang: ${lang === 'ru' ? 'Russian' : 'English'}. Max 15 words.`;
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prompt,
       });
 
-      const oracleText = response.text || (lang === 'ru' ? "Звезды сегодня молчаливы..." : "The stars are silent today...");
-      setMessages(prev => [...prev, { role: 'oracle', text: oracleText }]);
+      setMessages(prev => [...prev, { role: 'oracle', text: response.text || "..." }]);
     } catch (error) {
-      setMessages(prev => [...prev, { role: 'oracle', text: lang === 'ru' ? "Эфирные помехи..." : "Etheric interference..." }]);
+      setMessages(prev => [...prev, { role: 'oracle', text: lang === 'ru' ? "Связь прервана." : "Link broken." }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-[140px] md:h-[160px] w-full max-w-[450px] mx-auto animate-fadeIn group relative">
-      <div className="relative flex flex-col h-full bg-black/40 backdrop-blur-2xl rounded-[1.2rem] border border-[#d4af3710] overflow-hidden shadow-2xl transition-all duration-700 hover:border-[#d4af3725]">
+    <div className="flex flex-col w-full animate-fadeIn mb-12 mt-6">
+      <div className="relative flex flex-col h-[200px] md:h-[240px] magical-gold-frame rounded-[1.5rem] overflow-hidden shadow-2xl bg-black/40">
         
-        {/* Compact Header */}
-        <div className="px-3 py-1 border-b border-[#d4af3708] bg-[#d4af3705] flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <Orbit size={12} className="text-[#f9e29c] animate-[spin_10s_linear_infinite]" />
-            <h3 className="text-[7px] font-cinzel font-black gold-gradient-text tracking-[0.2em] uppercase leading-none">{t.oracleTitle}</h3>
+        <div className="px-5 py-3 border-b border-white/5 flex items-center gap-3 shrink-0 bg-black/20 group">
+          <div className="relative">
+            <Orbit size={14} className="text-[var(--accent)] opacity-40 group-hover:opacity-100 group-hover:text-[var(--accent-bright)] animate-[spin_10s_linear_infinite] transition-all" />
           </div>
-          <div className="flex gap-1">
-             <div className="w-1 h-1 rounded-full bg-[#d4af3720]"></div>
-          </div>
+          <h3 className="text-[10px] font-cinzel font-black text-[var(--accent)] opacity-50 group-hover:opacity-100 group-hover:text-[var(--accent-bright)] tracking-[0.3em] uppercase transition-all">{t.oracleTitle}</h3>
         </div>
 
-        {/* Message Stream */}
-        <div 
-          ref={scrollRef}
-          className="flex-grow overflow-y-auto p-2 flex flex-col gap-1.5 scrollbar-none"
-        >
+        <div ref={scrollRef} className="flex-grow overflow-y-auto p-5 space-y-4 hide-scrollbar">
           {messages.length === 0 && (
-            <div className="flex-grow flex items-center justify-center opacity-10">
-              <p className="text-[6px] font-montserrat text-[#d4af37] tracking-[0.3em] uppercase font-bold">
-                {lang === 'ru' ? 'ЗАДАЙТЕ ВОПРОС' : 'ASK THE VOID'}
-              </p>
+            <div className="h-full flex flex-col items-center justify-center opacity-10 text-center px-8">
+              <Mail size={16} className="mb-2 text-[var(--accent)]" strokeWidth={1} />
+              <span className="text-[9px] font-black tracking-[0.4em] text-[var(--accent)] uppercase leading-relaxed">
+                Вопрошайте Бездну
+              </span>
             </div>
           )}
-          
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-fadeIn`}>
-              <div className={`max-w-[85%] p-1.5 rounded-[0.8rem] text-[8px] md:text-[9px] leading-tight ${
+              <div className={`max-w-[85%] px-4 py-2 rounded-[1rem] text-[12px] leading-relaxed border transition-colors ${
                 msg.role === 'user' 
-                ? 'bg-[#d4af3710] text-[#f9e29c] rounded-br-none' 
-                : 'bg-white/[0.03] text-[#e2e2d5cc] italic rounded-bl-none'
+                ? 'bg-[var(--accent-glow)] text-[var(--accent-bright)] border-[var(--accent-glow)] rounded-br-none' 
+                : 'bg-white/[0.02] text-[var(--accent)] opacity-70 italic font-playfair border-white/5 rounded-bl-none'
               }`}>
                 {msg.text}
               </div>
             </div>
           ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="p-1.5 rounded-[0.8rem] rounded-bl-none flex items-center gap-2">
-                <Loader2 size={8} className="text-[#d4af3750] animate-spin" />
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Mini Input Field */}
-        <div className="p-1.5 bg-black/20 border-t border-[#d4af3705] shrink-0">
-          <form 
-            onSubmit={(e) => { e.preventDefault(); askOracle(input); }}
-            className="flex gap-1.5"
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={t.oraclePlaceholder}
-              className="flex-grow bg-black/20 border border-[#d4af3710] rounded-full px-3 py-1 text-[8px] md:text-[9px] text-[#f9e29c] placeholder:text-[#d4af3710] focus:outline-none focus:border-[#d4af3730] transition-all"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || loading}
-              className="w-6 h-6 rounded-full bg-[#d4af3710] text-[#d4af37] flex items-center justify-center hover:bg-[#d4af3720] disabled:opacity-10 transition-all"
-            >
-              <Send size={10} />
-            </button>
-          </form>
-        </div>
+        <form onSubmit={(e) => { e.preventDefault(); askOracle(input); }} className="p-3 flex gap-3 border-t border-white/5 bg-black/60 shrink-0">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={t.oraclePlaceholder}
+            className="flex-grow bg-white/5 border border-white/10 rounded-full px-5 py-2 text-[12px] text-[var(--accent)] focus:text-[var(--accent-bright)] focus:outline-none focus:border-[var(--accent)] transition-all placeholder:text-[var(--accent)] placeholder:opacity-20"
+          />
+          <button type="submit" disabled={!input.trim() || loading} className="w-10 h-10 rounded-full flex items-center justify-center bg-white/5 text-[var(--accent)] hover:bg-[var(--accent)] hover:text-black active:scale-90 transition-all border border-white/10">
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <Mail size={18} />}
+          </button>
+        </form>
       </div>
     </div>
   );

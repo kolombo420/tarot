@@ -19,49 +19,40 @@ const TarotCardItem: React.FC<Props> = ({ card, onReveal, lang }) => {
       className={`relative w-full max-w-[280px] mx-auto aspect-[2/3.5] perspective-2000 cursor-pointer group mb-4`}
       onClick={!isRevealed ? onReveal : undefined}
     >
-      {/* Glow Effect on Hover/Reveal */}
-      <div className={`absolute -inset-4 bg-[#d4af37] rounded-full opacity-0 blur-[60px] transition-opacity duration-1000 ${isRevealed ? 'opacity-10' : 'group-hover:opacity-5'}`}></div>
+      <div className={`absolute -inset-6 bg-[var(--accent)] rounded-full opacity-0 blur-[80px] transition-opacity duration-1000 ${isRevealed ? 'opacity-10' : 'group-hover:opacity-10'}`}></div>
 
-      <div className={`relative w-full h-full transition-transform duration-[1200ms] cubic-bezier(0.34, 1.56, 0.64, 1) transform-style-3d ${isRevealed ? 'rotate-y-180' : ''}`}>
+      <div className={`relative w-full h-full transition-transform duration-[1400ms] cubic-bezier(0.34, 1.56, 0.64, 1) transform-style-3d ${isRevealed ? 'rotate-y-180' : ''}`}>
         
-        {/* Front side (Card Image) */}
-        <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden border border-[#d4af3766] shadow-[0_15px_45px_rgba(0,0,0,0.8)] bg-[#0a0a0f]">
+        {/* Face */}
+        <div className="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl overflow-hidden border border-[var(--accent-glow)] shadow-[0_15px_45px_rgba(0,0,0,0.8)] bg-[#0a0a0f]">
           {card.imageUrl && (
-            <img src={card.imageUrl} alt={lang === 'ru' ? card.nameRu : card.name} className="w-full h-full object-cover brightness-90 contrast-110" />
+            <img src={card.imageUrl} alt={lang === 'ru' ? card.nameRu : card.name} className="w-full h-full object-cover brightness-75 contrast-125" />
           )}
-          {/* Decorative Overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
-          <div className="absolute inset-2 border border-[#d4af3722] rounded-xl pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent"></div>
+          <div className="absolute inset-2 border border-[var(--accent-glow)] rounded-xl pointer-events-none opacity-20"></div>
           
-          <div className="absolute bottom-0 inset-x-0 p-4 text-center">
-            <div className="text-[8px] font-cinzel text-[#d4af37] tracking-[0.3em] uppercase mb-1 opacity-60">ARCANA</div>
-            <h4 className="text-[#f9e29c] font-cinzel font-black text-sm md:text-base tracking-[0.15em] uppercase drop-shadow-lg">
+          <div className="absolute bottom-0 inset-x-0 p-5 text-center">
+            <div className="text-[9px] font-cinzel text-[var(--accent)] tracking-[0.4em] uppercase mb-1 opacity-50">ARCANA</div>
+            <h4 className="text-[var(--accent-bright)] font-cinzel font-black text-sm md:text-base tracking-[0.2em] uppercase drop-shadow-lg italic">
               {lang === 'ru' ? card.nameRu : card.name}
             </h4>
           </div>
-
-          {/* Reveal Flash Animation */}
-          {isRevealed && (
-            <div className="absolute inset-0 bg-white opacity-0 animate-[flash_0.8s_ease-out_forwards] pointer-events-none"></div>
-          )}
         </div>
 
-        {/* Back side (Shirt) */}
-        <div className="absolute inset-0 backface-hidden rounded-2xl overflow-hidden border border-[#d4af3744] bg-[#0d0d1a] flex flex-col items-center justify-center p-4 shadow-2xl">
-           <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{
-             backgroundImage: `radial-gradient(circle at center, #d4af37 1px, transparent 1px)`,
-             backgroundSize: '16px 16px'
+        {/* Back */}
+        <div className="absolute inset-0 backface-hidden rounded-2xl overflow-hidden border border-[var(--accent-glow)] bg-[var(--bg-base)] flex flex-col items-center justify-center p-4 shadow-2xl transition-all group-hover:border-[var(--accent-bright)]">
+           <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{
+             backgroundImage: `radial-gradient(circle at center, var(--accent) 1px, transparent 1px)`,
+             backgroundSize: '20px 20px'
            }}></div>
            
-           <div className="w-full h-full border border-double border-[#d4af3722] rounded-xl flex flex-col items-center justify-center relative overflow-hidden">
-             {/* Animated Sacred Geometry */}
-             <div className="absolute w-32 h-32 border border-[#d4af3711] rounded-full animate-[spin_20s_linear_infinite]"></div>
-             <div className="absolute w-24 h-24 border border-[#d4af3708] rounded-full animate-[spin_15s_linear_infinite_reverse]"></div>
+           <div className="w-full h-full border border-double border-[var(--accent-glow)] rounded-xl flex flex-col items-center justify-center relative overflow-hidden group-hover:border-[var(--accent-bright)] transition-colors">
+             <div className="absolute w-32 h-32 border border-[var(--accent-glow)] rounded-full animate-[spin_25s_linear_infinite] opacity-10 group-hover:opacity-30 transition-opacity"></div>
              
-             <div className="relative z-10 flex flex-col items-center transform transition-transform duration-700 group-hover:scale-110">
-               <div className="text-4xl mb-3 filter drop-shadow-[0_0_10px_rgba(212,175,55,0.3)]">🌙</div>
-               <div className="w-10 h-[1px] bg-[#d4af3733] mb-3"></div>
-               <div className="text-[8px] font-cinzel text-[#d4af37] tracking-[0.4em] uppercase font-bold opacity-60">{t.reveal}</div>
+             <div className="relative z-10 flex flex-col items-center transform transition-all duration-700 group-hover:scale-110">
+               <div className="text-4xl mb-4 filter opacity-40 group-hover:opacity-100 group-hover:drop-shadow-[0_0_15px_var(--accent-glow)] transition-all">🌙</div>
+               <div className="w-12 h-[1px] bg-[var(--accent-glow)] mb-4 group-hover:bg-[var(--accent-bright)] transition-colors"></div>
+               <div className="text-[10px] font-cinzel text-[var(--accent)] group-hover:text-[var(--accent-bright)] tracking-[0.5em] uppercase font-bold opacity-40 group-hover:opacity-100 transition-all">{t.reveal}</div>
              </div>
            </div>
         </div>
@@ -72,13 +63,6 @@ const TarotCardItem: React.FC<Props> = ({ card, onReveal, lang }) => {
         .perspective-2000 { perspective: 2000px; }
         .transform-style-3d { transform-style: preserve-3d; }
         .backface-hidden { backface-visibility: hidden; }
-        
-        @keyframes flash {
-          0% { opacity: 0.8; }
-          100% { opacity: 0; }
-        }
-
-        .rotate-y-180 { transform: rotateY(180deg); }
       `}</style>
     </div>
   );

@@ -1,10 +1,21 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { AppStyle } from "../types";
 
-export const generateTarotCardImage = async (cardName: string, deckStyle: string): Promise<string> => {
+export const generateTarotCardImage = async (
+  cardName: string, 
+  visualElements: string, 
+  deckStyle: string,
+  appStyle: AppStyle = 'CELESTIAL'
+): Promise<string> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  const prompt = `Mystical tarot card: "${cardName}". Style: ${deckStyle}. Cinematic lighting, esoteric atmosphere, highly detailed. Clear focal point, NO text on card. Detailed ornate border.`;
+  const atmosphere = {
+    'CELESTIAL': 'Divine holiness, ethereal golden light, renaissance perfection, sacred geometry.',
+    'VOID': 'Cyberpunk neon, digital glitches, data streams, cold violet light, holographic mysticism.',
+    'CHTHONIC': 'Ancient blood rituals, sacrificial crimson, deep obsidian shadows, visceral horror, hellish glow.'
+  }[appStyle];
+
+  const prompt = `HIGH QUALITY TAROT ART: "${cardName}". Atmosphere: ${atmosphere}. Style: ${deckStyle}. Visual keys: ${visualElements}. Full height card composition, symmetrical, centered. NO TEXT, NO UI ELEMENTS. Masterpiece quality.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -20,7 +31,6 @@ export const generateTarotCardImage = async (cardName: string, deckStyle: string
     throw new Error("Image data missing");
   } catch (error) {
     console.error("Image Gen Error:", error);
-    // Fallback image
     return `https://images.unsplash.com/photo-1601024445121-e5b82f020549?q=80&w=800&auto=format&fit=crop`;
   }
 };
@@ -35,17 +45,35 @@ export const generateReadingInterpretation = async (
   category: string,
   readingTitle: string,
   cards: string[],
-  context: { spell?: string | null, outcome?: string | null }
+  context: { spell?: string | null },
+  appStyle: AppStyle = 'CELESTIAL'
 ): Promise<InterpretationResult> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const prompt = `Act as an ancient mystic Oracle. Perform a ${category} reading called "${readingTitle}" for these cards: ${cards.join(', ')}.
-  User context: Intent is "${context.spell || 'unknown'}", goal is "${context.outcome || 'unknown'}".
-  Language: ${lang === 'ru' ? 'Russian' : 'English'}.
-  Provide a JSON result with two fields: 
-  1. 'outcome': a powerful 2-3 sentence overall prophecy.
-  2. 'cardInterpretations': an array of strings, one for each card in order (1-2 sentences each). 
-  Make it dark, esoteric, and insightful.`;
+  const voiceTone = {
+    'CELESTIAL': 'Seraphic, wise, high-vibrational, compassionate and encouraging.',
+    'VOID': 'Synthesized, mathematical, logical, cold, precise and detached.',
+    'CHTHONIC': 'Gravelly, ancient, ominous, warning, visceral and blood-bound.'
+  }[appStyle];
+
+  const prompt = `Oracle [Tone: ${voiceTone}]: Deep Tarot Ritual for ${cards.join(', ')}. 
+  Seeker's Intent: ${context.spell || 'Silent contemplation'}. 
+  Lang: ${lang === 'ru' ? 'Russian' : 'English'}.
+
+  TASK: Create a profound, professional esoteric analysis.
+  
+  1. MASTER PROPHECY (outcome):
+     - Section "ДУХ" (Spirit): The core energy of the situation. 2-3 paragraphs.
+     - Section "ТЕНЬ" (Shadow): Hidden dangers, ego traps, or external malice. 2-3 paragraphs.
+     - Section "СВЕТ" (Light): The solution, actionable steps, and the final revelation. 2-3 paragraphs.
+  2. CARD ANALYTICS (cardInterpretations):
+     - For each card, write 3 sentences: Archetypal meaning, Situational meaning, Advice.
+
+  Strict JSON format:
+  {
+    "outcome": "HTML formatted text using <b> (for headers only) and <p> tags",
+    "cardInterpretations": ["Interpret string 1", "Interpret string 2", ...]
+  }`;
 
   try {
     const response = await ai.models.generateContent({
@@ -67,12 +95,13 @@ export const generateReadingInterpretation = async (
       }
     });
 
-    return JSON.parse(response.text || '{}') as InterpretationResult;
+    const text = response.text || "{}";
+    return JSON.parse(text) as InterpretationResult;
   } catch (error) {
     console.error("Interpretation Error:", error);
     return {
-      outcome: lang === 'ru' ? "Пути судьбы туманны, но свет интуиции выведет вас из тьмы." : "The paths of fate are misty, but the light of intuition will lead you out of the dark.",
-      cardInterpretations: cards.map(() => lang === 'ru' ? "Тайный смысл этого аркана откроется вам в медитации." : "The secret meaning of this arcana will be revealed in meditation.")
+      outcome: lang === 'ru' ? "<p>Нити судьбы спутаны. Эфир молчит.</p>" : "<p>The threads of fate are tangled. The ether is silent.</p>",
+      cardInterpretations: cards.map(() => lang === 'ru' ? "Значение сокрыто." : "Meaning obscured.")
     };
   }
 };

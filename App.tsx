@@ -1,314 +1,460 @@
 
-import React, { useState, useRef } from 'react';
-import { TarotCard, DeckInfo, ReadingState, ReadingType, RitualCategoryInfo } from './types';
-import { MAJOR_ARCANA, CATEGORY_READINGS } from './constants';
+import React, { useState, useRef, useEffect } from 'react';
+import bridge from '@vkontakte/vk-bridge';
+import { ReadingState, AppStyle, ReadingHistoryItem, UserProfile } from './types';
+import { FULL_DECK, CATEGORY_READINGS } from './constants';
 import { generateTarotCardImage, generateReadingInterpretation } from './services/geminiService';
-import { translations, Language } from './translations';
+import { translations } from './translations';
 import RitualCategorySelector from './components/RitualCategorySelector';
 import DeckSelector from './components/DeckSelector';
 import LoadingScreen from './components/LoadingScreen';
 import TarotCardItem from './components/TarotCardItem';
 import RitualItemPicker from './components/CardPicker';
 import RitualTuning from './components/RitualTuning';
-import { RefreshCw, ArrowLeft, Languages, Info } from 'lucide-react';
+import OracleChat from './components/OracleChat';
+import { Eye, Clock, Palette, User, Home, ArrowLeft, ShieldCheck, Sparkles, AlertCircle, RefreshCcw } from 'lucide-react';
 
-const UnifiedMysticHeader = ({ lang }: { lang: Language }) => {
-  const t = translations[lang];
+const STORAGE_KEY = 'oracle_user_data_v24';
+const COOLDOWN_MS = 60 * 60 * 1000;
+
+const INITIAL_USER: UserProfile = {
+  xp: 0,
+  level: 1,
+  rank: "Неофит",
+  lastDailyUpdate: null,
+  lastReadingTimestamp: null,
+  readingsCount: 0,
+  energy: 1,
+  maxEnergy: 1,
+  isPro: false,
+  firstReadingDone: false,
+  preferredStyle: 'CELESTIAL',
+  history: []
+};
+
+const MysticalHeader: React.FC<{ lang: string }> = ({ lang }) => {
+  const t = translations[lang as 'ru' | 'en'];
   return (
-    <div className="relative flex flex-col items-center justify-center py-2 group cursor-default z-20 shrink-0">
+    <header className="flex flex-col items-center justify-center mb-12 mt-0 select-none animate-fadeIn">
+      <div className="relative mb-6">
+        <div className="absolute inset-0 bg-[var(--accent)] blur-3xl opacity-10 animate-pulse"></div>
+        <Eye size={56} className="text-[var(--accent)] drop-shadow-[0_0_15px_var(--accent-glow)] animate-float-slow" strokeWidth={0.5} />
+      </div>
       <div className="flex flex-col items-center text-center">
-        <div className="relative w-12 h-12 mb-2 transition-transform duration-1000 group-hover:scale-110">
-          <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_15px_rgba(212,175,55,0.4)]">
-            <path 
-              d="M50,10 A40,40 0 1,1 50,90 A30,30 0 1,0 50,10" 
-              fill="none" 
-              stroke="url(#goldGradientApp)" 
-              strokeWidth="1.5"
-              className="animate-[spin_40s_linear_infinite]"
-            />
-            <defs>
-              <linearGradient id="goldGradientApp" x1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#f9e29c" />
-                <stop offset="50%" stopColor="#d4af37" />
-                <stop offset="100%" stopColor="#a67c00" />
-              </linearGradient>
-            </defs>
-            <circle cx="50" cy="50" r="8" fill="#d4af37" className="animate-pulse" />
-          </svg>
-        </div>
-        <h1 className="text-xl md:text-3xl font-cinzel font-black tracking-[0.4em] gold-gradient-text uppercase leading-none drop-shadow-2xl">
+        <h1 className="text-2xl md:text-3xl font-cinzel font-black gold-gradient-text uppercase tracking-[0.3em] italic leading-tight mb-2">
           {t.title}
         </h1>
-        <p className="text-[6px] md:text-[8px] font-montserrat font-bold text-[#f9e29c] tracking-[0.5em] uppercase opacity-40 mt-1">
-          {t.subtitle}
-        </p>
+        <div className="flex items-center gap-4 w-full opacity-20">
+          <div className="h-[1px] flex-grow bg-current"></div>
+          <p className="text-[8px] tracking-[0.6em] uppercase font-bold whitespace-nowrap">
+            {t.subtitle}
+          </p>
+          <div className="h-[1px] flex-grow bg-current"></div>
+        </div>
       </div>
-    </div>
+    </header>
   );
 };
 
 const App: React.FC = () => {
   const [state, setState] = useState<ReadingState>({
-    lang: 'ru',
-    category: null,
-    cards: [],
-    readingOutcome: null,
-    deck: null,
-    readingType: null,
-    targetPhoto: null,
-    targetPhoto2: null,
-    spellQuery: null,
-    positiveQuery: null,
-    selectedIndices: [],
-    loading: false,
-    error: null,
-    phase: 'CATEGORY',
+    lang: 'ru', appStyle: 'CELESTIAL', category: null, cards: [], readingOutcome: null, deck: null,
+    readingType: null, targetPhoto: null, targetPhoto2: null, spellQuery: null,
+    selectedIndices: [], loading: false, error: null,
+    phase: 'CATEGORY', showLevelUp: false, soundEnabled: false, user: INITIAL_USER
   });
 
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const t = translations[state.lang];
+  const [charge, setCharge] = useState(0);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [scrollThumb, setScrollThumb] = useState({ top: 0, height: 0 });
+  
+  const chargeInterval = useRef<number | null>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
-  const toggleLang = () => setState(prev => ({ ...prev, lang: prev.lang === 'ru' ? 'en' : 'ru' }));
+  const revealedCount = state.cards.filter(c => c.revealed).length;
+  const allCardsRevealed = state.cards.length > 0 && revealedCount === state.cards.length;
 
-  const handleCategorySelect = (category: RitualCategoryInfo) => {
-    setState(prev => ({ ...prev, category: category.id, phase: category.id === 'TAROT' ? 'DECK' : 'TARGET' }));
-  };
+  useEffect(() => {
+    const init = async () => {
+      let savedUser = INITIAL_USER;
+      try {
+        const vkRes = await bridge.send("VKWebAppStorageGet", { keys: [STORAGE_KEY] });
+        if (vkRes.keys?.[0]?.value) {
+          savedUser = { ...INITIAL_USER, ...JSON.parse(vkRes.keys[0].value) };
+        }
+      } catch (e) {}
+      setState(prev => ({ ...prev, user: savedUser, appStyle: savedUser.preferredStyle || 'CELESTIAL' }));
+    };
+    init();
+  }, []);
 
-  const handleDeckSelect = (deck: DeckInfo) => {
-    setState(prev => ({ ...prev, deck, phase: 'TARGET' }));
-  };
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (state.user.lastReadingTimestamp) {
+        const diff = Date.now() - state.user.lastReadingTimestamp;
+        setCooldownRemaining(Math.max(0, COOLDOWN_MS - diff));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [state.user.lastReadingTimestamp]);
 
-  const handleTuningComplete = (type: ReadingType, p1: string | null, p2: string | null, spell: string | null, positive: string | null) => {
-    setState(prev => ({
-      ...prev,
-      readingType: type,
-      targetPhoto: p1,
-      targetPhoto2: p2,
-      spellQuery: spell,
-      positiveQuery: positive,
-      phase: 'PICK'
-    }));
-  };
+  useEffect(() => {
+    document.body.setAttribute('data-theme', state.appStyle);
+  }, [state.appStyle]);
 
-  const handleCardPick = async (index: number) => {
-    if (state.selectedIndices.length >= (state.readingType?.count || 0)) return;
-    
-    const newIndices = [...state.selectedIndices, index];
-    setState(prev => ({ ...prev, selectedIndices: newIndices }));
-
-    if (newIndices.length === (state.readingType?.count || 0)) {
-      await startReading(newIndices);
+  const updateScrollInfo = () => {
+    if (portalRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = portalRef.current;
+      if (scrollHeight > clientHeight) {
+        const hRatio = clientHeight / scrollHeight;
+        const height = hRatio * clientHeight;
+        const top = (scrollTop / scrollHeight) * clientHeight;
+        setScrollThumb({ top, height });
+      } else {
+        setScrollThumb({ top: 0, height: 0 });
+      }
     }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(updateScrollInfo, 150);
+    return () => clearTimeout(timer);
+  }, [state.phase, state.cards, state.error]);
+
+  const saveUser = (user: UserProfile) => {
+    bridge.send("VKWebAppStorageSet", { key: STORAGE_KEY, value: JSON.stringify(user) }).catch(() => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    });
   };
 
   const startReading = async (pickedIndices: number[]) => {
+    if (pickedIndices.length === 0) return;
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const shuffled = [...MAJOR_ARCANA].sort(() => 0.5 - Math.random());
-      const selectedArcana = shuffled.slice(0, pickedIndices.length);
+      const shuffled = [...FULL_DECK].sort(() => 0.5 - Math.random());
+      const count = state.readingType?.count || pickedIndices.length;
+      const selectedArcana = shuffled.slice(0, count);
 
-      const interpretationPromise = generateReadingInterpretation(
-        state.lang,
-        state.category!,
-        state.readingType!.title,
+      const interpretation = await generateReadingInterpretation(
+        state.lang, state.category || 'TAROT', state.readingType?.title || 'Unknown',
         selectedArcana.map(c => state.lang === 'ru' ? c.nameRu : c.name),
-        { spell: state.spellQuery, outcome: state.positiveQuery }
+        { spell: state.spellQuery },
+        state.appStyle
       );
 
-      const imagePromises = selectedArcana.map(card => 
-        generateTarotCardImage(state.lang === 'ru' ? card.nameRu : card.name, state.deck?.aiPromptStyle || 'Classic mystical')
-      );
-
-      const [interpResult, imageUrls] = await Promise.all([
-        interpretationPromise,
-        Promise.all(imagePromises)
-      ]);
+      const images = await Promise.all(selectedArcana.map(card => 
+        generateTarotCardImage(card.name, card.visualElements, state.deck?.aiPromptStyle || '', state.appStyle)
+      ));
 
       const finalCards = selectedArcana.map((card, idx) => ({
-        ...card,
-        imageUrl: imageUrls[idx],
-        interpretation: interpResult.cardInterpretations[idx] || card.description,
+        ...card, imageUrl: images[idx],
+        interpretation: interpretation.cardInterpretations[idx] || (state.lang === 'ru' ? 'Тайна...' : 'Mystery...'),
         revealed: false
       }));
 
-      setState(prev => ({
-        ...prev,
-        cards: finalCards,
-        readingOutcome: interpResult.outcome,
-        loading: false,
-        phase: 'RESULT'
-      }));
+      const hItem: ReadingHistoryItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        date: new Date().toISOString(),
+        category: state.category || 'TAROT',
+        typeTitle: state.lang === 'ru' ? (state.readingType?.title || 'Ритуал') : (state.readingType?.titleEn || 'Ritual'),
+        outcome: interpretation.outcome,
+        cards: finalCards.map(c => ({ name: c.nameRu, imageUrl: c.imageUrl! })),
+        style: state.appStyle
+      };
 
-    } catch (err) {
-      console.error(err);
-      setState(prev => ({ 
-        ...prev, 
-        loading: false, 
-        error: state.lang === 'ru' ? "Связь с астралом прервана..." : "Astral link severed..." 
-      }));
+      const xpGained = (state.readingType?.count || 1) * 200;
+      const newUser = {
+        ...state.user,
+        xp: state.user.xp + xpGained,
+        level: Math.floor((state.user.xp + xpGained) / 1000) + 1,
+        readingsCount: state.user.readingsCount + 1,
+        history: [hItem, ...state.user.history].slice(0, 30),
+        lastReadingTimestamp: Date.now()
+      };
+      
+      const rankIdx = Math.min(Math.floor(newUser.level / 5), translations[state.lang].ranks.length - 1);
+      newUser.rank = translations[state.lang].ranks[rankIdx];
+
+      saveUser(newUser);
+      setState(prev => ({ ...prev, cards: finalCards, readingOutcome: interpretation.outcome, loading: false, phase: 'RESULT', user: newUser, error: null }));
+    } catch (e) {
+      console.error("Reading Error:", e);
+      setState(prev => ({ ...prev, loading: false, error: state.lang === 'ru' ? "Эфир нестабилен. Попробуйте снова." : "Ether unstable. Please retry." }));
     }
   };
 
-  const handleRevealCard = (idx: number) => {
-    setState(prev => ({
-      ...prev,
-      cards: prev.cards.map((c, i) => i === idx ? { ...c, revealed: true } : c)
-    }));
+  const formatCooldown = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${(s % 60).toString().padStart(2, '0')}`;
   };
 
-  const reset = () => {
-    setState(prev => ({
-      ...prev,
-      cards: [],
-      readingOutcome: null,
-      deck: null,
-      readingType: null,
-      targetPhoto: null,
-      targetPhoto2: null,
-      spellQuery: null,
-      positiveQuery: null,
-      selectedIndices: [],
-      loading: false,
-      error: null,
-      phase: 'CATEGORY'
-    }));
-  };
+  const t = translations[state.lang];
+  const progress = (state.user.xp % 1000) / 10;
 
   return (
-    <div className="h-screen flex flex-col p-2 relative overflow-hidden">
+    <div className="h-full w-full flex flex-col relative overflow-hidden safe-area-inset bg-transparent">
+      <div className="nebula"></div>
+      
       {state.loading && <LoadingScreen />}
-
-      <button 
-        onClick={toggleLang}
-        className="fixed top-3 right-3 z-50 px-3 py-1.5 bg-black/60 border border-[#d4af3744] text-[#f9e29c] rounded-full hover:bg-[#d4af3722] hover:border-[#d4af37] transition-all flex items-center gap-2 backdrop-blur-md font-montserrat text-[9px] tracking-widest uppercase font-bold shadow-2xl"
-      >
-        <Languages size={12} className="text-[#d4af37]" />
-        {state.lang === 'ru' ? 'РУ' : 'EN'}
-      </button>
-
-      <header className="relative z-10 shrink-0 mb-2">
-        <UnifiedMysticHeader lang={state.lang} />
-      </header>
-
-      <main className="flex-grow max-w-5xl mx-auto w-full relative z-10 px-2 flex flex-col overflow-hidden">
-        {state.phase === 'CATEGORY' && (
-          <div className="animate-fadeIn flex flex-col h-full gap-4 overflow-y-auto hide-scrollbar py-2">
-            <div className="w-full">
-              <RitualCategorySelector onSelect={handleCategorySelect} lang={state.lang} />
-            </div>
+      
+      {/* Top Navigation */}
+      <div className="fixed top-2 left-0 right-0 z-[70] px-6 flex justify-center pointer-events-none">
+        <div className="w-full max-w-[900px] flex justify-between items-center pointer-events-auto">
+          <div className="flex gap-2">
+            {state.phase !== 'CATEGORY' && (
+              <button 
+                onClick={() => {
+                  const prevPhases: Record<string, any> = { 'DECK': 'CATEGORY', 'TARGET': state.category === 'TAROT' ? 'DECK' : 'CATEGORY', 'CONCENTRATE': 'TARGET', 'PICK': 'CONCENTRATE', 'RESULT': 'CATEGORY' };
+                  setState(prev => ({ ...prev, phase: prevPhases[prev.phase] || 'CATEGORY', error: null }));
+                }}
+                className="w-10 h-10 magical-gold-frame rounded-lg flex items-center justify-center text-[var(--accent)] hover:text-[var(--accent-bright)]"
+              >
+                <ArrowLeft size={16} />
+              </button>
+            )}
+            {state.phase !== 'CATEGORY' && (
+              <button onClick={() => setState(prev => ({ ...prev, phase: 'CATEGORY', cards: [], selectedIndices: [], readingOutcome: null, error: null }))} className="w-10 h-10 magical-gold-frame rounded-lg flex items-center justify-center text-[var(--accent)] hover:text-[var(--accent-bright)]">
+                <Home size={16} />
+              </button>
+            )}
           </div>
-        )}
-
-        {state.phase === 'DECK' && (
-          <div className="animate-fadeIn flex flex-col items-center h-full overflow-y-auto hide-scrollbar py-2">
-             <button onClick={() => setState(prev => ({ ...prev, phase: 'CATEGORY' }))} className="self-start flex items-center gap-2 text-[#d4af3766] hover:text-[#f9e29c] mb-4 transition-all font-montserrat text-[10px] tracking-[0.2em] uppercase group">
-               <ArrowLeft size={16} /> {t.toCategory}
-             </button>
-             <h2 className="text-xl font-cinzel font-bold text-[#f9e29c] mb-6 uppercase tracking-[0.2em]">{t.selectDeck}</h2>
-             <DeckSelector onSelect={handleDeckSelect} selectedDeckId={null} lang={state.lang} />
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setState(prev => ({ ...prev, lang: prev.lang === 'ru' ? 'en' : 'ru' }))}
+              className="w-10 h-10 magical-gold-frame rounded-lg flex items-center justify-center text-[var(--accent)] hover:text-[var(--accent-bright)]"
+            >
+              <span className="text-[10px] font-black font-cinzel tracking-wider uppercase">{state.lang}</span>
+            </button>
+            <button onClick={() => setState(prev => ({ ...prev, phase: 'HISTORY', error: null }))} className="w-10 h-10 magical-gold-frame rounded-lg flex items-center justify-center text-[var(--accent)] hover:text-[var(--accent-bright)]">
+              <Clock size={16} />
+            </button>
+            <button onClick={() => {
+                const styles: AppStyle[] = ['CELESTIAL', 'VOID', 'CHTHONIC'];
+                const next = styles[(styles.indexOf(state.appStyle) + 1) % 3];
+                setState(prev => ({ ...prev, appStyle: next }));
+            }} className="w-10 h-10 magical-gold-frame rounded-lg flex items-center justify-center text-[var(--accent)] hover:text-[var(--accent-bright)]">
+              <Palette size={16} />
+            </button>
           </div>
-        )}
+        </div>
+      </div>
 
-        {state.phase === 'TARGET' && (
-          <div className="animate-fadeIn h-full flex flex-col py-2">
-            <button onClick={() => setState(prev => ({ ...prev, phase: state.category === 'TAROT' ? 'DECK' : 'CATEGORY' }))} className="self-start flex items-center gap-2 text-[#d4af3766] hover:text-[#f9e29c] mb-2 transition-all font-montserrat text-[10px] tracking-[0.2em] uppercase group">
-               <ArrowLeft size={16} /> {t.back}
-             </button>
-            <RitualTuning 
-              lang={state.lang}
-              category={state.category!}
-              readingTypes={CATEGORY_READINGS[state.category!] || []}
-              onComplete={handleTuningComplete} 
-              onSkip={() => setState(prev => ({ ...prev, phase: 'PICK' }))} 
-            />
+      <main className="flex-grow flex flex-col items-center relative z-10 overflow-hidden pt-4">
+        <div className="relative w-full max-w-[900px] mx-auto h-full overflow-hidden">
+          
+          <div className="left-scroll-indicator">
+            <div 
+              className="left-scroll-thumb"
+              style={{ 
+                top: `${scrollThumb.top}px`, 
+                height: `${scrollThumb.height}px`,
+                opacity: (scrollThumb.height > 0) ? 1 : 0
+              }}
+            ></div>
           </div>
-        )}
 
-        {state.phase === 'PICK' && (
-          <div className="animate-fadeIn h-full overflow-hidden">
-             <RitualItemPicker 
-               lang={state.lang}
-               countNeeded={state.readingType?.count || 1} 
-               countSelected={state.selectedIndices.length} 
-               onPick={handleCardPick}
-               selectedIndices={state.selectedIndices}
-             />
-          </div>
-        )}
-
-        {state.phase === 'RESULT' && (
-          <div ref={scrollRef} className="flex flex-col items-center gap-6 animate-fadeIn pb-12 h-full overflow-y-auto hide-scrollbar pt-2 scroll-smooth">
-             <div className="w-full max-w-4xl mx-auto flex flex-col items-center">
-                <div className="text-center mb-10 w-full animate-fadeInUp">
-                   <div className="text-[10px] font-cinzel font-bold text-[#d4af3766] tracking-[0.5em] uppercase mb-2">ПОСЛАНИЕ ЭФИРА</div>
-                   <h2 className="text-xl md:text-3xl font-cinzel font-black gold-gradient-text uppercase tracking-widest leading-tight mb-4">
-                     {state.lang === 'ru' ? state.readingType?.title : state.readingType?.titleEn}
-                   </h2>
-                   {state.readingOutcome && (
-                     <div className="relative inline-block max-w-2xl px-6 py-4 bg-black/40 backdrop-blur-xl border border-[#d4af3722] rounded-3xl shadow-inner">
-                        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#d4af37] text-black rounded-full text-[8px] font-black tracking-widest uppercase">Prophecy</div>
-                        <p className="text-xs md:text-sm text-[#f9e29c] italic font-playfair opacity-90 leading-relaxed">
-                          "{state.readingOutcome}"
-                        </p>
-                     </div>
-                   )}
-                </div>
-
-                <div className={`grid grid-cols-1 md:grid-cols-${Math.min(state.cards.length, 3)} gap-8 w-full items-start px-2`}>
-                  {state.cards.map((card, idx) => (
-                    <div key={idx} className="flex flex-col gap-6 items-center">
-                      <TarotCardItem card={card} index={idx} onReveal={() => handleRevealCard(idx)} lang={state.lang} />
-                      
-                      {card.revealed && (
-                        <div className="animate-fadeIn w-full">
-                           <div className="bg-black/60 backdrop-blur-2xl p-5 rounded-[1.5rem] border border-[#d4af3715] shadow-2xl relative overflow-hidden group hover:border-[#d4af3744] transition-all duration-500">
-                             {/* Mini decorative sigil */}
-                             <div className="absolute top-2 right-3 opacity-20 group-hover:opacity-40 transition-opacity">
-                               <Info size={12} className="text-[#d4af37]" />
-                             </div>
-
-                             <h5 className="text-[9px] font-cinzel font-black text-[#d4af37] tracking-[0.2em] uppercase mb-3 border-b border-[#d4af3711] pb-2">Трактовка Аркана</h5>
-                             
-                             <div className="space-y-3">
-                               <p className="text-[10px] md:text-[11px] text-gray-400 font-montserrat leading-relaxed opacity-60">
-                                 <span className="text-[#f9e29c] font-bold uppercase mr-1">Базис:</span> 
-                                 {card.description}
-                               </p>
-                               <p className="text-[11px] md:text-[13px] text-[#f9e29c] font-playfair italic leading-relaxed border-l-2 border-[#d4af3733] pl-3 py-1">
-                                 {card.interpretation}
-                               </p>
-                             </div>
-                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-             </div>
-
-             <div className="flex gap-4 mt-8 pb-10">
-                <button onClick={reset} className="px-8 py-2.5 bg-black/40 hover:bg-[#d4af3722] text-[#f9e29c] rounded-full border border-[#d4af3733] font-montserrat font-bold uppercase tracking-[0.3em] text-[10px] flex items-center gap-3 transition-all hover:scale-105 active:scale-95 shadow-xl">
-                   <RefreshCw size={12} /> {t.reset}
+          <div 
+            ref={portalRef}
+            onScroll={updateScrollInfo}
+            className="square-portal overflow-y-auto custom-scrollbar md:px-0 pb-48"
+          >
+            {state.error && (
+              <div className="animate-fadeIn p-8 mt-16 mx-6 magical-gold-frame rounded-[1.5rem] border-red-500/30 bg-red-950/20 flex flex-col items-center text-center gap-4">
+                <AlertCircle className="text-red-500" size={32} />
+                <p className="text-[14px] font-cinzel text-red-200 uppercase tracking-widest">{state.error}</p>
+                <button 
+                  onClick={() => setState(prev => ({ ...prev, phase: 'CATEGORY', error: null, cards: [], selectedIndices: [] }))}
+                  className="px-8 py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-full text-[10px] font-black tracking-widest text-red-200 transition-all flex items-center gap-2"
+                >
+                  <RefreshCcw size={14} />
+                  {state.lang === 'ru' ? 'ВЕРНУТЬСЯ' : 'GO BACK'}
                 </button>
-             </div>
+              </div>
+            )}
+
+            {!state.error && state.phase === 'CATEGORY' && (
+              <div className="animate-fadeIn flex flex-col gap-10 pt-12 px-6 md:px-0">
+                <MysticalHeader lang={state.lang} />
+                <RitualCategorySelector onSelect={(cat) => setState(prev => ({ ...prev, category: cat.id, phase: cat.id === 'TAROT' ? 'DECK' : 'TARGET' }))} lang={state.lang} />
+                <OracleChat lang={state.lang} appStyle={state.appStyle} />
+              </div>
+            )}
+
+            {!state.error && state.phase === 'HISTORY' && (
+              <div className="animate-fadeIn space-y-6 pt-16 px-6">
+                 <h2 className="text-3xl font-cinzel font-black gold-gradient-text text-center uppercase tracking-widest italic mb-8">Хроники Эфира</h2>
+                 {state.user.history.length === 0 ? (
+                   <div className="h-64 flex flex-col items-center justify-center opacity-20 text-center">
+                     <ShieldCheck size={80} strokeWidth={0.5} className="mb-4 text-[var(--accent)]" />
+                     <p className="font-cinzel text-lg tracking-[0.4em] uppercase text-[var(--accent)]">Архив пуст</p>
+                   </div>
+                 ) : (
+                   state.user.history.map(item => (
+                     <div key={item.id} className="magical-gold-frame p-8 rounded-[1.5rem] shadow-xl border-l-[3px] border-l-[var(--accent)] bg-black/40 group hover:border-l-[var(--accent-bright)] transition-all">
+                        <div className="flex justify-between items-start mb-4">
+                            <span className="text-[9px] text-[var(--accent)] font-black uppercase tracking-[0.3em] group-hover:text-[var(--accent-bright)]">{new Date(item.date).toLocaleDateString()}</span>
+                            <h4 className="text-xl font-cinzel font-bold text-[var(--accent)] group-hover:text-[var(--accent-bright)] uppercase italic tracking-widest">{item.typeTitle}</h4>
+                        </div>
+                        <div className="text-[13px] leading-relaxed interpretation-render" dangerouslySetInnerHTML={{ __html: item.outcome }}></div>
+                     </div>
+                   ))
+                 )}
+              </div>
+            )}
+
+            {!state.error && state.phase === 'DECK' && (
+              <div className="animate-fadeIn pt-16 px-6">
+                 <div className="text-center mb-8 flex flex-col items-center">
+                    <h2 className="text-xl md:text-2xl font-cinzel font-black gold-gradient-text uppercase tracking-widest italic leading-tight">{t.selectDeck}</h2>
+                    <p className="text-[10px] font-black text-[var(--accent)] opacity-40 uppercase tracking-[0.4em] mt-2 italic">
+                      {state.lang === 'ru' ? 'нажмите выбрать' : 'press to select'}
+                    </p>
+                 </div>
+                 <DeckSelector onSelect={(d) => setState(prev => ({ ...prev, deck: d, phase: 'TARGET' }))} selectedDeckId={null} lang={state.lang} />
+              </div>
+            )}
+
+            {!state.error && state.phase === 'TARGET' && (
+              <div className="animate-fadeIn pt-16 px-6">
+                 <RitualTuning lang={state.lang} category={state.category!} readingTypes={CATEGORY_READINGS[state.category!] || []} onComplete={(type, p1, p2, spell) => {
+                    setState(prev => ({ ...prev, readingType: type, targetPhoto: p1, targetPhoto2: p2, spellQuery: spell, phase: 'CONCENTRATE' }));
+                 }} cooldownRemaining={cooldownRemaining} onSkip={() => {}} />
+              </div>
+            )}
+
+            {!state.error && state.phase === 'CONCENTRATE' && (
+              <div className="h-full flex flex-col items-center justify-center text-center animate-fadeIn py-16 px-6">
+                 <h2 className="text-lg md:text-xl font-cinzel font-black gold-gradient-text uppercase tracking-widest mb-12 text-center max-w-[280px] mx-auto leading-snug animate-fadeIn">
+                   {state.lang === 'ru' ? (
+                     <>Удерживайте сферу<br/>для настройки энергии</>
+                   ) : (
+                     <>Hold the sphere<br/>to align energy</>
+                   )}
+                 </h2>
+                 <div className="relative w-72 h-72 active:scale-95 transition-all duration-700 cursor-pointer flex items-center justify-center"
+                      onMouseDown={() => chargeInterval.current = window.setInterval(() => setCharge(c => Math.min(100, c + 1.2)), 25)}
+                      onMouseUp={() => { clearInterval(chargeInterval.current!); chargeInterval.current = null; }}
+                      onTouchStart={() => chargeInterval.current = window.setInterval(() => setCharge(c => Math.min(100, c + 1.2)), 25)}
+                      onTouchEnd={() => { clearInterval(chargeInterval.current!); chargeInterval.current = null; }}>
+                    <div className="absolute inset-0 rounded-full border border-[var(--accent-glow)] animate-[spin_15s_linear_infinite]"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                       <div className="rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-soft)] transition-all shadow-[0_0_100px_var(--accent)]" style={{ width: `${15 + charge*0.75}%`, height: `${15 + charge*0.75}%`, opacity: 0.15 + (charge/100)*0.85 }}></div>
+                    </div>
+                    {charge >= 100 ? (
+                       <button 
+                        onClick={() => {
+                          setCharge(0); 
+                          setState(prev => ({ ...prev, phase: 'PICK', selectedIndices: [] })); 
+                        }} 
+                        className="absolute z-20 px-12 py-6 bg-[var(--accent)] text-black font-black uppercase tracking-[0.4em] rounded-full animate-bounce text-xs shadow-[0_0_40px_var(--accent)]"
+                       >
+                         {state.lang === 'ru' ? 'ВОЙТИ В ЭФИР' : 'ENTER ETHER'}
+                       </button>
+                    ) : (
+                      <div className="relative z-10 text-xl font-black text-[var(--accent)] uppercase tracking-[0.7em] animate-pulse">{Math.floor(charge)}%</div>
+                    )}
+                 </div>
+              </div>
+            )}
+
+            {!state.error && state.phase === 'PICK' && (
+              <div className="animate-fadeIn pt-8 flex flex-col h-full px-6">
+                 <RitualItemPicker lang={state.lang} countNeeded={state.readingType?.count || 1} countSelected={state.selectedIndices.length} onPick={(idx) => {
+                    const next = [...state.selectedIndices, idx];
+                    setState(prev => ({ ...prev, selectedIndices: next }));
+                    if (next.length === (state.readingType?.count || 0)) startReading(next);
+                 }} selectedIndices={state.selectedIndices} />
+              </div>
+            )}
+
+            {!state.error && state.phase === 'RESULT' && (
+              <div className="animate-fadeIn pt-6 max-w-5xl mx-auto flex flex-col items-center px-6">
+                 
+                 <div className="text-center mb-12 w-full">
+                    <div className="flex flex-col items-center mb-6">
+                       <Sparkles size={20} className="text-[var(--accent)] mb-2 animate-pulse" />
+                       <h3 className="text-[10px] font-black tracking-[0.6em] text-[var(--accent)] uppercase opacity-40">
+                          {allCardsRevealed ? (state.lang === 'ru' ? 'РИТУАЛ ЗАВЕРШЕН' : 'RITUAL COMPLETE') : (state.lang === 'ru' ? 'ТАИНСТВО РАСКЛАДА' : 'SACRED SPREAD')}
+                       </h3>
+                    </div>
+
+                    <div className={`flex flex-wrap justify-center gap-10 md:gap-16 w-full ${state.cards.length >= 3 ? 'grid grid-cols-1 sm:grid-cols-3' : 'flex'}`}>
+                      {state.cards.map((c, i) => (
+                        <div key={i} className="flex flex-col items-center gap-4 group">
+                          <TarotCardItem 
+                             card={c} 
+                             index={i} 
+                             onReveal={() => setState(prev => ({ ...prev, cards: prev.cards.map((card, idx) => idx === i ? { ...card, revealed: true } : card) }))} 
+                             lang={state.lang} 
+                          />
+                          <div className={`transition-all duration-1000 transform ${c.revealed ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6 pointer-events-none'}`}>
+                            <div className="magical-gold-frame p-5 rounded-[1.5rem] text-[11px] leading-relaxed text-center italic text-[var(--accent)] group-hover:text-[var(--accent-bright)] w-full shadow-lg max-w-[240px] bg-black/60 transition-colors">
+                              <div className="mb-2 text-[12px] font-cinzel font-black uppercase tracking-widest italic">{state.lang === 'ru' ? c.nameRu : c.name}</div>
+                              <p className="opacity-70 line-clamp-3 group-hover:line-clamp-none transition-all duration-500">{c.interpretation}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                 </div>
+
+                 <div className={`w-full transition-all duration-[1500ms] cubic-bezier(0.23, 1, 0.32, 1) ${allCardsRevealed ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-16 pointer-events-none'}`}>
+                    <div className="magical-gold-frame p-10 md:p-14 rounded-[2.5rem] mb-20 shadow-2xl relative bg-black/80 backdrop-blur-3xl border-white/5 group">
+                       <div className="absolute top-8 left-1/2 -translate-x-1/2 flex items-center gap-6 opacity-20 group-hover:opacity-40 transition-opacity">
+                         <div className="w-16 h-[1px] bg-[var(--accent)]"></div>
+                         <Eye size={24} className="text-[var(--accent)]" />
+                         <div className="w-16 h-[1px] bg-[var(--accent)]"></div>
+                       </div>
+                       
+                       <h2 className="text-2xl md:text-4xl font-cinzel font-black gold-gradient-text uppercase tracking-[0.2em] mb-10 text-center italic drop-shadow-xl">{t.oracleTitle}</h2>
+                       
+                       <div className="text-left interpretation-render max-w-[700px] mx-auto" dangerouslySetInnerHTML={{ __html: state.readingOutcome || '' }}></div>
+                       
+                       <div className="mt-14 flex flex-col items-center gap-8">
+                         <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-[var(--accent-glow)] to-transparent opacity-40"></div>
+                         <button 
+                           onClick={() => setState(prev => ({ ...prev, phase: 'CATEGORY', cards: [], selectedIndices: [], readingOutcome: null, error: null }))} 
+                           className="w-full h-16 magical-gold-frame text-[var(--accent)] hover:text-black font-black uppercase tracking-[0.4em] rounded-full text-xs shadow-[0_0_20px_var(--accent-glow)] hover:bg-[var(--accent)] transition-all active:scale-95 flex items-center justify-center gap-3"
+                         >
+                             <Sparkles size={16} />
+                             {t.reset}
+                         </button>
+                       </div>
+                    </div>
+                 </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </main>
 
-      <footer className="py-2 border-t border-[#d4af3708] text-center text-[#d4af3711] text-[6px] md:text-[8px] tracking-[1em] font-cinzel font-bold uppercase relative z-0 mt-auto shrink-0">
-        <p>✧ PRECESSIO • SYZYGIA • ASCENDANT ✧</p>
-      </footer>
-
-      <style>{`
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fadeInUp { animation: fadeInUp 1s ease-out forwards; }
-      `}</style>
+      {/* Persistence Bar */}
+      <div className="fixed bottom-0 left-0 right-0 p-5 z-50 pointer-events-none flex justify-center">
+        <div className="w-full max-w-[900px] flex flex-col gap-3 pointer-events-auto">
+          <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden border border-white/5">
+             <div className="h-full bg-gradient-to-r from-[var(--accent)] via-[var(--accent-soft)] to-[var(--accent)] transition-all duration-1000 shadow-[0_0_10px_var(--accent)]" style={{ width: `${progress}%` }}></div>
+          </div>
+          <div className="flex justify-between items-center magical-gold-frame px-10 py-4 rounded-full shadow-2xl bg-black/90 group">
+             <div className="flex items-center gap-5">
+                <div className="w-10 h-10 bg-[var(--accent-glow)] rounded-lg flex items-center justify-center text-[var(--accent)] group-hover:text-[var(--accent-bright)] transition-colors"><User size={20} /></div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] font-black text-[var(--accent)] opacity-40 uppercase tracking-[0.4em]">LVL {state.user.level}</span>
+                  <span className="text-[12px] font-cinzel font-black gold-gradient-text uppercase tracking-[0.15em] italic leading-none">{state.user.rank}</span>
+                </div>
+             </div>
+             <div className="flex flex-col items-end">
+                <span className="text-[9px] font-black text-[var(--accent)] opacity-40 uppercase tracking-[0.4em] mb-0.5">{cooldownRemaining > 0 ? t.cooldown : t.ready}</span>
+                <div className="flex items-center gap-2">
+                   <Clock size={16} className={cooldownRemaining > 0 ? "text-[var(--accent)] animate-pulse" : "text-green-500"} />
+                   <span className={`text-[12px] font-black font-cinzel tracking-wider ${cooldownRemaining > 0 ? 'text-[var(--accent)] group-hover:text-[var(--accent-bright)]' : 'text-green-500'}`}>
+                     {cooldownRemaining > 0 ? formatCooldown(cooldownRemaining) : 'READY'}
+                   </span>
+                </div>
+             </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

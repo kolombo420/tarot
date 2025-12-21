@@ -6,18 +6,22 @@ export default defineConfig(({ mode }) => {
   
   return {
     plugins: [react()],
-    // Критично для Electron: базовый путь должен быть относительным
     base: './',
     define: {
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
     },
     build: {
       outDir: 'dist',
       assetsDir: 'assets',
       emptyOutDir: true,
+      chunkSizeWarningLimit: 1200, // Увеличиваем лимит, так как библиотеки ИИ тяжелые
       rollupOptions: {
         output: {
-          manualChunks: undefined
+          manualChunks: {
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-ai': ['@google/genai'],
+            'vendor-icons': ['lucide-react']
+          }
         }
       }
     },
